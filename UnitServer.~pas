@@ -97,7 +97,7 @@ for i := 0 to ServerSocket1.Socket.ActiveConnections-1 do
   begin
     with ServerSocket1.Socket.Connections[i] do
     begin
-        SendText('ORDER#'+ Edit1.Text +'#'+ Edit3.Text +'#'+ Edit4.Text +'#'+ Edit5.Text +#13#10);
+        SendText('NOTIFY#'+ Edit1.Text +'#'+ Edit3.Text +'#'+ Edit4.Text +'#'+ Edit5.Text +'#13#10);
     end;
   end;
 //ServerSocket1.Socket.Connections[0].sendtext('NOTIFY#'+ Edit1.Text +'#'+ Edit3.Text +'# CATATAN'#13#10);
