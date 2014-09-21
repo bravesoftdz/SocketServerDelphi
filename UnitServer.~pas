@@ -4,24 +4,29 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ScktComp, Winsock;
+  Dialogs, StdCtrls, ScktComp, Winsock, Menus, DB, Grids, DBGrids,
+  ZAbstractRODataset, ZAbstractDataset, ZAbstractTable, ZDataset,
+  ZConnection;
 
 type
   TFormServer = class(TForm)
     ServerSocket1: TServerSocket;
     Memo1: TMemo;
     ButtonSend: TButton;
-    Label1: TLabel;
-    Edit1: TEdit;
     Label2: TLabel;
-    Edit2: TEdit;
-    Label3: TLabel;
-    Edit3: TEdit;
-    Edit4: TEdit;
-    Edit5: TEdit;
-    Label4: TLabel;
+    EditIP: TEdit;
     Label5: TLabel;
     Button1: TButton;
+    ZConnection: TZConnection;
+    ZTableOrder: TZTable;
+    DBGrid1: TDBGrid;
+    DsOrder: TDataSource;
+    MainMenu1: TMainMenu;
+    Menu1: TMenuItem;
+    Product1: TMenuItem;
+    Waiters1: TMenuItem;
+    Ingredients1: TMenuItem;
+    ZQueryInput: TZQuery;
     procedure ServerSocket1ClientRead(Sender: TObject;
       Socket: TCustomWinSocket);
     procedure ButtonSendClick(Sender: TObject);
@@ -56,7 +61,7 @@ var
 begin 
   Result := False;     
   if WSAStartup($0101, WSAData) <> 0 then begin 
-    WSAErr := 'Winsock is not responding."'; 
+    WSAErr := 'Winsock is not responding."';
     Exit; 
   end; 
   IPaddr := ''; 
@@ -77,16 +82,84 @@ begin
     WSANOTINITIALISED:WSAErr:='WSANotInitialised'; 
     WSAENETDOWN      :WSAErr:='WSAENetDown'; 
     WSAEINPROGRESS   :WSAErr:='WSAEInProgress'; 
-   end; 
+   end;
   end; 
   Dispose(HName);
   WSACleanup;
 end;
 
+procedure Split
+(const Delimiter: Char; // delimiter charachter
+ Input: string;         // input string
+ const Strings: TStrings) ; // list of string result
+begin
+Assert(Assigned(Strings)) ;
+Strings.Clear;
+Strings.Delimiter := Delimiter;
+Strings.DelimitedText := Input;
+end;
+
 procedure TFormServer.ServerSocket1ClientRead(Sender: TObject;
   Socket: TCustomWinSocket);
+var
+ data, command, noTable, idMember, idWaiters, idProduct, productName, price, qty, unique_id:string;
+ splitOrder,splitDetailOrder : TStringList;
+ count, i, clientNo : integer;
 begin
-memo1.Lines.Add(Socket.ReceiveText)
+data := Socket.ReceiveText;
+memo1.Lines.Add(data);
+splitOrder:= TStringList.Create;
+  try
+    Split('/', data, splitOrder);
+    count := splitOrder.Count;
+    for i:=0 to count-1 do
+  begin
+      splitDetailOrder:= TStringList.Create;
+        try
+          Split('#', splitOrder[i], splitDetailOrder) ;
+          command:=splitDetailOrder[0];
+          noTable:=splitDetailOrder[1];
+          idWaiters:=splitDetailOrder[2];
+          idMember:=splitDetailOrder[3];
+          idProduct:=splitDetailOrder[4];
+          productName:=splitDetailOrder[5];
+          price:=splitDetailOrder[6];
+          qty:=splitDetailOrder[7];
+          unique_id:=splitDetailOrder[8];
+          if command='ORDER' then
+          begin
+            with ZQueryInput do
+            begin
+              Close;
+              SQL.Clear;
+              SQL.Text:='insert into cafedb.order (FID_WAITERS, FID_MENU, FID_MEMBER, QTY, TABLE_NO)values('''+idWaiters+''', '''+idProduct+''', '''+idMember+''', '''+qty+''', '''+noTable+''')';
+              ExecSQL;
+            end;
+          end;
+
+          for clientNo := 0 to ServerSocket1.Socket.ActiveConnections-1 do
+            begin
+              with ServerSocket1.Socket.Connections[i] do
+              begin
+                SendText(command+'#'+ noTable +'#'+ idMember +'#'+ idProduct +'#'+ productName +'#'+ unique_id +#13#10);
+              end;
+            end;
+
+          ZTableOrder.Refresh;
+
+        finally
+          splitDetailOrder.Free;
+        end;
+
+  end;
+  finally
+    splitOrder.Free;
+  end;
+
+
+
+
+
 end;
 
 procedure TFormServer.ButtonSendClick(Sender: TObject);
@@ -97,10 +170,10 @@ for i := 0 to ServerSocket1.Socket.ActiveConnections-1 do
   begin
     with ServerSocket1.Socket.Connections[i] do
     begin
-        SendText('NOTIFY#'+ Edit1.Text +'#'+ Edit3.Text +'#'+ Edit4.Text +'#'+ Edit5.Text +'#13#10);
+//        SendText('ORDER#'+ Edit1.Text +'#'+ Edit3.Text +'#'+ Edit4.Text +'#'+ Edit5.Text +#13#10);
     end;
   end;
-//ServerSocket1.Socket.Connections[0].sendtext('NOTIFY#'+ Edit1.Text +'#'+ Edit3.Text +'# CATATAN'#13#10);
+
 end;
 
 procedure TFormServer.ServerSocket1ClientConnect(Sender: TObject;
@@ -110,11 +183,11 @@ memo1.Lines.Add('Client has connected');
 end;
 
 procedure TFormServer.FormShow(Sender: TObject);
-var 
+var
   Host, IP, Err: string;
 begin
 if GetIPFromHost(Host, IP, Err) then begin
-    Edit2.Text := IP;
+    EditIP.Text := IP;
   end
   else
     MessageDlg(Err, mtError, [mbOk], 0);
